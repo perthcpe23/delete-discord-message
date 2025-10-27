@@ -14,6 +14,7 @@ import (
 
 // The sleep time is carefully selected. Reducing it can cause rate limit error.
 const sleepBetweenDeleteBatch = time.Duration(10) * time.Second
+const messageDeleteBatchSize = 6
 
 func DeleteAllMessageInChannel(username string, deleteRequestBodyModel model.DeleteRequestBodyModel) error {
 	messages, err := getAllMessagesInChannel(deleteRequestBodyModel)
@@ -21,18 +22,19 @@ func DeleteAllMessageInChannel(username string, deleteRequestBodyModel model.Del
 		log.Println(err)
 		return err
 	}
-	log.Printf("%s: total messages = %d\n", deleteRequestBodyModel.ChannelId, len(messages))
+	log.Printf("Channel %s, total message count = %d\n", deleteRequestBodyModel.ChannelId, len(messages))
 
-	totalMessageCount := 0
+	totalOwnMessageCount := 0
 	for _, message := range messages {
 		if message.Author.Username == username {
-			totalMessageCount += 1
+			totalOwnMessageCount += 1
 		}
 	}
 
 	deletedMessageCount := 0
 	for _, message := range messages {
 		if message.Author.Username != username {
+			// you can only delete your own messages
 			continue
 		}
 
@@ -44,12 +46,12 @@ func DeleteAllMessageInChannel(username string, deleteRequestBodyModel model.Del
 
 		deletedMessageCount += 1
 
-		if deletedMessageCount > 0 && deletedMessageCount%6 == 0 {
+		if deletedMessageCount > 0 && deletedMessageCount%messageDeleteBatchSize == 0 {
 			log.Printf(
 				"[%s] Deleted %d/%d messages, sleep %.0f seconds...\n",
 				deleteRequestBodyModel.ChannelId,
 				deletedMessageCount,
-				totalMessageCount,
+				totalOwnMessageCount,
 				sleepBetweenDeleteBatch.Seconds(),
 			)
 			time.Sleep(sleepBetweenDeleteBatch)
